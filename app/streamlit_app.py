@@ -20,7 +20,7 @@ if st.button("Evaluate Resume"):
         result = scoring.evaluate(resume_text, jd_text)
 
         # Display results
-       st.metric("Relevance Score", f"{result['score']}/100")
+        st.metric("Relevance Score", f"{result['score']}/100")
         st.write(f"**Verdict:** {result['verdict']}")
         st.write(f"**Matched Skills:** {', '.join(result['matched'])}")
         st.write(f"**Missing Skills:** {', '.join(result['missing'])}")
