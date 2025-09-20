@@ -1,28 +1,25 @@
-from rapidfuzz import fuzz
-from src import embeddings
-import numpy as np
+import io
+import docx
+from PyPDF2 import PdfReader
 
-def hard_match(resume_text, jd_text, skills=["python","sql","ml","ai","aws"]):
-    matched, missing = [], []
-    resume_lower = resume_text.lower()
-    for skill in skills:
-        if skill.lower() in resume_lower:
-            matched.append(skill)
-        else:
-            missing.append(skill)
-    return matched, missing
-
-def semantic_score(resume_text, jd_text):
-    r_vec = embeddings.get_embedding(resume_text)
-    j_vec = embeddings.get_embedding(jd_text)
-    sim = np.dot(r_vec, j_vec) / (np.linalg.norm(r_vec) * np.linalg.norm(j_vec))
-    return round(sim*100, 2)
-
-def evaluate(resume_text, jd_text):
-    matched, missing = hard_match(resume_text, jd_text)
-    sem = semantic_score(resume_text, jd_text)
-    hard = len(matched) / (len(matched)+len(missing)+1e-6) * 100
-    score = round(0.6*sem + 0.4*hard, 2)
-    verdict = "High" if score >= 70 else "Medium" if score >= 40 else "Low"
-    suggestions = [f"Add {m}" for m in missing]
-    return score, verdict, matched, missing, suggestions
+def extract_text(uploaded_file):
+    """
+    Extract text from uploaded_file (txt, pdf, or docx).
+    uploaded_file is a Streamlit UploadedFile object.
+    """
+    # TXT
+    if uploaded_file.type == "text/plain":
+        return uploaded_file.getvalue().decode("utf-8")
+    
+    # DOCX
+    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        doc = docx.Document(io.BytesIO(uploaded_file.getvalue()))
+        return "\n".join([para.text for para in doc.paragraphs])
+    
+    # PDF
+    elif uploaded_file.type == "application/pdf":
+        reader = PdfReader(io.BytesIO(uploaded_file.getvalue()))
+        return "\n".join([page.extract_text() for page in reader.pages])
+    
+    else:
+        return ""
