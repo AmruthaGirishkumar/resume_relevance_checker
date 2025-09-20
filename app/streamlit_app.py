@@ -1,14 +1,13 @@
 import streamlit as st
-import os
-from src import parsing, scoring, db
+from src import parsing, scoring
 
 st.set_page_config(page_title="Resume Relevance Checker", layout="wide")
 st.title("Automated Resume Relevance Check System")
 
 # Upload JD
-jd_file = st.file_uploader("Upload Job Description (txt/docx/pdf)", type=["txt", "pdf", "docx"])
+jd_file = st.file_uploader("Upload Job Description (txt/docx/pdf)", type=["txt","pdf","docx"])
 # Upload Resume
-resume_file = st.file_uploader("Upload Resume (txt/docx/pdf)", type=["txt", "pdf", "docx"])
+resume_file = st.file_uploader("Upload Resume (txt/docx/pdf)", type=["txt","pdf","docx"])
 
 if st.button("Evaluate Resume"):
     if jd_file and resume_file:
@@ -16,17 +15,13 @@ if st.button("Evaluate Resume"):
         jd_text = parsing.extract_text(jd_file)
         resume_text = parsing.extract_text(resume_file)
 
-        # Scoring
+        # Evaluate
         result = scoring.evaluate(resume_text, jd_text)
 
         # Display results
         st.metric("Relevance Score", f"{result['score']}/100")
-        st.write(f"**Verdict:** {result['verdict']}")
-        st.write(f"**Matched Skills:** {', '.join(result['matched'])}")
-        st.write(f"**Missing Skills:** {', '.join(result['missing'])}")
-        st.write(f"**Suggestions:** {result['suggestions']}")
-        st.info(f"Resume Summary: {result['summary']}")
-        st.success(f"Likelihood of Selection: {result['likelihood']}%")
-
-        # Save result
-        db.save_evaluation("data/evaluations.db", result)
+        st.write(f"Verdict: **{result['verdict']}**")
+        st.write(f"Matched Skills: {', '.join(result['matched'])}")
+        st.write(f"Missing Skills: {', '.join(result['missing'])}")
+        st.write(f"Suggestions: {result['suggestions']}")
+        st.write(f"Evaluation Summary: {result['summary']}")
