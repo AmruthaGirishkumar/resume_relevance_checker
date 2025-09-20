@@ -1,6 +1,12 @@
 streamlit==1.49.1
+PyMuPDF
+pdfplumber
+python-docx
+spacy
 rapidfuzz
 numpy
 pandas
-PyMuPDF
-python-docx
+faiss-cpu
+openai
+sentence-transformers
+torch
