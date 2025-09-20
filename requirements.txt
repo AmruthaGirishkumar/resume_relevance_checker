@@ -10,3 +10,5 @@ faiss-cpu
 openai
 sentence-transformers
 torch
+PyPDF2
+
