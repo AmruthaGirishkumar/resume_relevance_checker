@@ -1,61 +1,76 @@
-from rapidfuzz import fuzz
-from src import embeddings
+# src/scoring.py
+from typing import List, Dict
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from rapidfuzz import fuzz  # pip install rapidfuzz
+from . import embeddings, vectorstore
+import os
 
-def hard_match(resume_text, jd_text, skills=["Python","SQL","ML","AI","AWS"]):
-    matched, missing = [], []
+DEFAULT_SKILLS = ["python","sql","machine learning","ai","aws"]
+
+# TF-IDF for document-level similarity (optional)
+_tfidf_vectorizer = TfidfVectorizer(stop_words="english")
+
+def hard_skill_match(resume_text: str, jd_text: str, skills=DEFAULT_SKILLS):
     resume_lower = resume_text.lower()
-    for skill in skills:
-        if skill.lower() in resume_lower:
-            matched.append(skill)
+    matched, missing = [], []
+    for s in skills:
+        if s.lower() in resume_lower:
+            matched.append(s.title())
         else:
-            missing.append(skill)
-    # Convert to sentence case
-    matched = [s.capitalize() for s in matched]
-    missing = [s.capitalize() for s in missing]
+            missing.append(s.title())
     return matched, missing
 
-def semantic_score(resume_text, jd_text):
+def semantic_similarity(resume_text: str, jd_text: str):
     r_vec = embeddings.get_embedding(resume_text)
     j_vec = embeddings.get_embedding(jd_text)
-    sim = np.dot(r_vec, j_vec) / (np.linalg.norm(r_vec) * np.linalg.norm(j_vec))
-    return round(sim*100, 2)
+    # cosine similarity:
+    num = np.dot(r_vec, j_vec)
+    den = np.linalg.norm(r_vec) * np.linalg.norm(j_vec) + 1e-12
+    return float(num/den) * 100.0
 
-def evaluate(resume_text, jd_text):
-    matched, missing = hard_match(resume_text, jd_text)
-    sem = semantic_score(resume_text, jd_text)
-    hard = len(matched) / (len(matched)+len(missing)+1e-6) * 100
-    score = round(0.6*sem + 0.4*hard, 1)
+def weighted_score(resume_text: str, jd_text: str, skills=DEFAULT_SKILLS, weight_sem=0.6, weight_hard=0.4):
+    matched, missing = hard_skill_match(resume_text, jd_text, skills)
+    sem = semantic_similarity(resume_text, jd_text)
+    hard_pct = len(matched) / (len(matched)+len(missing)+1e-12) * 100.0
+    score = weight_sem*sem + weight_hard*hard_pct
+    return round(score, 1), matched, missing, round(sem,1), round(hard_pct,1)
 
-    verdict = "High" if score >= 70 else "Medium" if score >= 40 else "Low"
+# Hook to call an LLM (via LangChain/OpenAI) for human-like feedback
+def generate_feedback_with_llm(resume_text, jd_text, matched, missing, score):
+    # If no OpenAI key, return a deterministic message
+    if not os.getenv("OPENAI_API_KEY"):
+        if score >= 70:
+            return "Resume is strong and well-aligned with the role. Likely to be shortlisted."
+        if score >= 40:
+            return "Resume is moderately aligned; improving highlighted areas could significantly increase chances."
+        return "Resume needs significant improvement; focus on practical projects and key skills."
 
-    # Practical human-like suggestions
-    suggestions_list = []
-    if "Python" in missing:
-        suggestions_list.append("Include specific Python projects or libraries you’ve used")
-    if "SQL" in missing:
-        suggestions_list.append("Highlight database experience with SQL queries or optimizations")
-    if "AWS" in missing:
-        suggestions_list.append("Showcase cloud deployment or AWS certifications")
-    if "ML" in missing:
-        suggestions_list.append("Demonstrate machine learning models or AI projects")
-    if "AI" in missing:
-        suggestions_list.append("Highlight AI-related experience and projects")
-    suggestions = " ".join(suggestions_list) if suggestions_list else "Resume is well-aligned with the job description."
+    # Minimal LangChain/OpenAI usage (showing example, requires openai key)
+    from langchain import LLMChain, PromptTemplate
+    from langchain.llms import OpenAI
+    llm = OpenAI(temperature=0.2)
+    template = """
+You are an HR reviewer. Given the job description: {jd}
+And the candidate's resume extract: {resume}
+Matched skills: {matched}
+Missing skills: {missing}
+Score (0-100): {score}
+Write a concise (1-2 sentence) evaluation combining a short summary and a 'what to improve' line.
+"""
+    prompt = PromptTemplate(input_variables=["jd","resume","matched","missing","score"], template=template)
+    chain = LLMChain(llm=llm, prompt=prompt)
+    out = chain.run({"jd": jd_text[:1500], "resume": resume_text[:1500], "matched": ", ".join(matched), "missing": ", ".join(missing), "score": score})
+    return out.strip()
 
-    # Combined summary + likelihood in human-like text
-    if score >= 70:
-        summary = f"Resume is strong and highly aligned with the role. You are likely to be considered for this position."
-    elif score >= 40:
-        summary = f"Resume shows potential but requires some improvements. Focusing on missing skills can improve chances."
-    else:
-        summary = f"Resume shows potential but requires significant improvements. Incorporating missing skills can make you a viable candidate."
-
+def evaluate_resume(resume_text: str, jd_text: str, skills=DEFAULT_SKILLS):
+    score, matched, missing, sem, hard_pct = weighted_score(resume_text, jd_text, skills)
+    feedback = generate_feedback_with_llm(resume_text, jd_text, matched, missing, score)
     return {
         "score": score,
-        "verdict": verdict,
         "matched": matched,
         "missing": missing,
-        "suggestions": suggestions,
-        "summary": summary
+        "semantic": sem,
+        "hard_pct": hard_pct,
+        "feedback": feedback
     }
