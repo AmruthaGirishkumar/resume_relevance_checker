@@ -2,7 +2,7 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from typing import List
-from src import parsing, scoring, db
+from app.src import parsing, scoring, db
 import uvicorn
 
 app = FastAPI(title="Resume Relevance API")
