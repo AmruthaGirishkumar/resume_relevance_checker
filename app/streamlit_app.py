@@ -1,13 +1,14 @@
 import streamlit as st
+import os
 from src import parsing, scoring, db
 
 st.set_page_config(page_title="Resume Relevance Checker", layout="wide")
-st.title("📄 Automated Resume Relevance Checker")
+st.title("Automated Resume Relevance Check System")
 
 # Upload JD
-jd_file = st.file_uploader("Upload Job Description (txt/pdf/docx)", type=["txt","pdf","docx"])
+jd_file = st.file_uploader("Upload Job Description (txt/docx/pdf)", type=["txt", "pdf", "docx"])
 # Upload Resume
-resume_file = st.file_uploader("Upload Resume (txt/pdf/docx)", type=["txt","pdf","docx"])
+resume_file = st.file_uploader("Upload Resume (txt/docx/pdf)", type=["txt", "pdf", "docx"])
 
 if st.button("Evaluate Resume"):
     if jd_file and resume_file:
@@ -16,23 +17,16 @@ if st.button("Evaluate Resume"):
         resume_text = parsing.extract_text(resume_file)
 
         # Scoring
-        score, verdict, matched, missing, suggestions = scoring.evaluate(resume_text, jd_text)
+        result = scoring.evaluate(resume_text, jd_text)
 
-        # Display results cleanly
-        st.markdown(f"**Relevance Score:** {score}/100")
-        st.markdown(f"**Verdict:** {verdict}")
-        st.markdown(f"**Matched Skills:** {', '.join(matched) if matched else 'None'}")
-        st.markdown(f"**Missing Skills:** {', '.join(missing) if missing else 'None'}")
-        st.markdown(f"**Suggestions:** {', '.join(suggestions) if suggestions else 'None'}")
+        # Display results
+        st.markdown(f"**Relevance Score:** {score:.1f}/100")
+        st.write(f"**Verdict:** {result['verdict']}")
+        st.write(f"**Matched Skills:** {', '.join(result['matched'])}")
+        st.write(f"**Missing Skills:** {', '.join(result['missing'])}")
+        st.write(f"**Suggestions:** {result['suggestions']}")
+        st.info(f"Resume Summary: {result['summary']}")
+        st.success(f"Likelihood of Selection: {result['likelihood']}%")
 
-        # Save evaluation
-        record = {
-            "resume_name": resume_file.name,
-            "jd_name": jd_file.name,
-            "score": score,
-            "verdict": verdict,
-            "matched_skills": matched,
-            "missing_skills": missing,
-            "suggestions": suggestions
-        }
-        db.save_evaluation("data/evaluations.db", record)
+        # Save result
+        db.save_evaluation("data/evaluations.db", result)
