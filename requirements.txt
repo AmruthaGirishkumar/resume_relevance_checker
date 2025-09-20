@@ -1,0 +1,6 @@
+streamlit==1.49.1
+rapidfuzz
+numpy
+pandas
+PyMuPDF
+python-docx
